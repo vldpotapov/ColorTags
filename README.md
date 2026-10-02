@@ -12,7 +12,8 @@ a supported API for colored content in a custom column.
 
 | Colored dots | Tag labels |
 | --- | --- |
-| ![Colored dots beside file rows in File Explorer](assets/circles.png) | ![Colored tag labels beside file rows in File Explorer](assets/tgas.png) |
+| **Dark theme**<br>![Colored dots in File Explorer with the dark theme](assets/pic-1.png) | **Dark theme**<br>![Tag labels in File Explorer with the dark theme](assets/pic-2.png) |
+| **Light theme**<br>![Colored dots in File Explorer with the light theme](assets/pic-3.png) | **Light theme**<br>![Tag labels in File Explorer with the light theme](assets/pic-4.png) |
 
 ## Features
 
@@ -31,6 +32,12 @@ a supported API for colored content in a custom column.
   depend on the database on that computer.
 - **Preserved modification time:** the file's modification timestamp is saved
   before writing its tag and restored afterward.
+
+### Tagging from the context menu
+
+Right-click a file, open **Tags**, and choose a color or **Remove tag**.
+
+![Tags submenu in the Windows 11 File Explorer context menu](assets/pic-5.png)
 
 ## Installation
 
@@ -69,6 +76,8 @@ Left-click the tray icon to open settings. You can rename all seven tags,
 choose dots or labels, hide indicators while scrolling or make them follow
 the rows, and check for updates. Apply your changes with the OK button;
 ColorTags refreshes the open Explorer windows.
+
+![ColorTags settings for tag names, display mode, scrolling, and updates](assets/pic-6.png)
 
 The same settings are stored under `HKCU\Software\ColorTags`:
 
