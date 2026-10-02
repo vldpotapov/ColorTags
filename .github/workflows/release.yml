@@ -1,0 +1,125 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # The same toolchain the project is built with locally. Bump this one value
+  # to move to a newer one; the asset name is derived from it.
+  LLVM_MINGW_VERSION: '20260922'
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the llvm-mingw toolchain
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: toolchain
+          key: llvm-mingw-${{ env.LLVM_MINGW_VERSION }}-ucrt-x86_64
+
+      - name: Download llvm-mingw
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $version = $env:LLVM_MINGW_VERSION
+          $name = "llvm-mingw-$version-ucrt-x86_64"
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/$name.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile toolchain.zip
+          New-Item -ItemType Directory -Force -Path toolchain | Out-Null
+          Expand-Archive -Path toolchain.zip -DestinationPath toolchain -Force
+
+      - name: Locate clang
+        id: clang
+        shell: pwsh
+        run: |
+          $bin = (Get-ChildItem -Path toolchain -Recurse -Filter clang++.exe |
+                  Select-Object -First 1).DirectoryName
+          if (-not $bin) { throw 'clang++.exe not found in the toolchain archive' }
+          Write-Host "clang bin: $bin"
+          "bin=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Test the core
+        shell: pwsh
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Stamp the version from the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          # The tag is the source of truth for a release; VERSION keeps the
+          # repository's own number for everything built off a branch.
+          $env:GITHUB_REF_NAME.Substring(1) | Set-Content -Path VERSION -NoNewline
+          Get-Content VERSION
+
+      - name: Build the shell extension
+        shell: pwsh
+        run: ./src/ShellExtension/build.ps1 -ClangBin '${{ steps.clang.outputs.bin }}'
+
+      - name: Test the property handler
+        shell: pwsh
+        run: ./tests/run_property_store_smoke.ps1 -ClangBin '${{ steps.clang.outputs.bin }}'
+
+      - name: Build the overlay
+        shell: pwsh
+        run: ./src/VisualNative/build.ps1 -ClangBin '${{ steps.clang.outputs.bin }}'
+
+      - name: Stage the package
+        shell: pwsh
+        run: ./tools/package.ps1 -Destination package
+
+      - name: Test the release package
+        shell: pwsh
+        run: ./tests/run_package_smoke.ps1 -PackageRoot package
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress --limit-output | Out-Null
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) { throw "ISCC.exe not found at $compiler" }
+          # A tag gives the release its version; anything else is a dev build.
+          $version = if ($env:GITHUB_REF_NAME -match '^v\d') {
+              $env:GITHUB_REF_NAME.Substring(1)
+          } else {
+              '0.0.0-dev'
+          }
+          & $compiler "/DAppVersion=$version" '/DPayload=..\package\Overlay' `
+              installer\ColorTags.iss
+          if ($LASTEXITCODE -ne 0) { throw 'the installer failed to compile' }
+          Get-ChildItem dist
+
+      - name: Upload the build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ColorTags-Explorer
+          path: |
+            package/**
+            dist/*.exe
+
+      - name: Attach the package to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = "ColorTags-Explorer-$tag.zip"
+          Compress-Archive -Path package/* -DestinationPath $zip -Force
+          $installer = (Get-ChildItem dist/*.exe | Select-Object -First 1).FullName
+          gh release create $tag $zip $installer `
+              --title "ColorTags Explorer $tag" --generate-notes

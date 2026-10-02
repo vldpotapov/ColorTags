@@ -1,0 +1,1 @@
+"""Platform-independent tagging core (Phase 1)."""

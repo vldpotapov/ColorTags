@@ -1,0 +1,55 @@
+#include <windows.h>
+
+// MSIX package identity — required for the OS to map this DLL to the
+// sparse package (otherwise Explorer refuses to load the extension).
+1 RT_MANIFEST "app.manifest"
+
+// Menu icons (returned from GetIcon as "ColorTagsMenu.dll,-<id>").
+101 ICON "icons/red.ico"
+102 ICON "icons/orange.ico"
+103 ICON "icons/yellow.ico"
+104 ICON "icons/green.ico"
+105 ICON "icons/blue.ico"
+106 ICON "icons/purple.ico"
+107 ICON "icons/gray.ico"
+108 ICON "icons/remove.ico"
+109 ICON "icons/ColorTags_Menu_Icons/tags_dark.ico"
+110 ICON "icons/ColorTags_Menu_Icons/tags_light.ico"
+
+// Checked variants (circle + white checkmark) — shown for the active tag.
+201 ICON "icons/red-check.ico"
+202 ICON "icons/orange-check.ico"
+203 ICON "icons/yellow-check.ico"
+204 ICON "icons/green-check.ico"
+205 ICON "icons/blue-check.ico"
+206 ICON "icons/purple-check.ico"
+207 ICON "icons/gray-check.ico"
+
+// Version info
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   0x3fL
+FILEFLAGS       0x0L
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_DLL
+FILESUBTYPE     0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "ColorTags"
+            VALUE "FileDescription",  "ColorTags Explorer context menu"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "ColorTagsMenu"
+            VALUE "OriginalFilename", "ColorTagsMenu.dll"
+            VALUE "ProductName",      "ColorTags"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

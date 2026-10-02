@@ -1,0 +1,1 @@
+"""CLI package (Phase 3). Entry point: ``python -m src.Cli.colortag``."""

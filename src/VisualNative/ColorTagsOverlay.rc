@@ -1,0 +1,5 @@
+// The application icon. Resource id 1 is what Windows shows in the title bar,
+// Alt+Tab and the task bar without being asked, and what the code loads for the
+// tray icon and the settings window.
+#define IDI_COLORTAGS 1
+IDI_COLORTAGS ICON "icons\\app.ico"

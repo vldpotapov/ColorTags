@@ -1,0 +1,6 @@
+LIBRARY ColorTagsMenu
+EXPORTS
+    DllCanUnloadNow
+    DllGetClassObject
+    DllRegisterServer
+    DllUnregisterServer

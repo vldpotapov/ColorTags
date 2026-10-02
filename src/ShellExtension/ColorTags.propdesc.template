@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://schemas.microsoft.com/windows/2006/propertydescription"
+        schemaVersion="1.0">
+  <propertyDescriptionList publisher="ColorTags" product="ColorTags Explorer">
+    <propertyDescription name="ColorTags.Explorer.ColorIcon"
+                         formatID="{EB41E2DC-D0F2-40D3-A498-016A61147FE5}"
+                         propID="2">
+      <searchInfo inInvertedIndex="true" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Color Tag" invitationText="Choose a color tag"/>
+      <typeInfo type="String" multipleValues="false"/>
+      <displayInfo displayType="Enumerated" defaultColumnWidth="12" alignment="Center">
+        <enumeratedList>
+          <enum value="red" text="Red"><image res="__ICON_MODULE__,-101"/></enum>
+          <enum value="orange" text="Orange"><image res="__ICON_MODULE__,-102"/></enum>
+          <enum value="yellow" text="Yellow"><image res="__ICON_MODULE__,-103"/></enum>
+          <enum value="green" text="Green"><image res="__ICON_MODULE__,-104"/></enum>
+          <enum value="blue" text="Blue"><image res="__ICON_MODULE__,-105"/></enum>
+          <enum value="purple" text="Purple"><image res="__ICON_MODULE__,-106"/></enum>
+          <enum value="gray" text="Gray"><image res="__ICON_MODULE__,-107"/></enum>
+        </enumeratedList>
+        <drawControl control="IconList"/>
+        <editControl control="DropList"/>
+        <filterControl control="Default"/>
+      </displayInfo>
+    </propertyDescription>
+  </propertyDescriptionList>
+</schema>

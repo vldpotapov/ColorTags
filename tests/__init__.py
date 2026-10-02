@@ -1,0 +1,1 @@
+"""ColorTags test suite."""

@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Build output (MSIX package staging)
+src/ShellExtension/out/
+src/VisualNative/out/
+
+# Local logs
+*.log
+
+# Overlay runtime output
+
+# Scratch: build logs, overlay status, spike transcripts
+temp/
+
+# Installer output
+dist/
+package/
