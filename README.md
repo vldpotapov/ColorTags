@@ -1,226 +1,239 @@
 # ColorTags Explorer
 
-Цветные теги для файлов и папок в Проводнике Windows 11. Выберите цвет в
-контекстном меню — и он появится в списке кружком или подписью с вашим
-названием («work», «urgent», «later»).
+Color tags for files and folders in Windows 11 File Explorer. Choose a color
+from the context menu and show it as a dot or a label with your own name, such
+as "work", "urgent", or "later".
 
-ColorTags добавляет цвет в обычный Проводник, не заменяя его отдельным
-файловым менеджером. Цвет рисует небольшая внешняя программа поверх строк;
-поддерживаемого API для цветного содержимого колонки Windows не предоставляет.
+ColorTags adds color to your existing Explorer windows. A small external
+program draws the indicators over file rows because Explorer does not expose
+a supported API for colored content in a custom column.
 
-## Что умеет
+## Screenshots
 
-- **Семь цветов** — red, orange, yellow, green, blue, purple, gray. Каждый
-  переименовывается: «red» становится «work», и это имя видно и в меню, и в
-  колонке, и на метке.
-- **Пункт в контекстном меню** Проводника — назначить или снять тег, в том числе
-  сразу для нескольких выделенных файлов.
-- **Колонка Tags** в режиме «Таблица» — название тега в режиме подписей.
-  В режиме кружков ячейка остаётся пустой, а цвет рисует внешний слой.
-- **Цвет поверх списка** — кружок у строки или цветная плашка с названием.
-- **Значок в трее** с окном настроек: названия всех тегов, режим показа,
-  поведение при прокрутке, проверка обновлений.
-- **На NTFS теги живут в самом файле** — в альтернативном потоке `:ColorTag`.
-  При переименовании и перемещении внутри тома NTFS тег сохраняется. На томах
-  без поддержки потоков меню использует локальную базу SQLite; такие теги
-  зависят от базы на этом компьютере.
-- **«Дата изменения» не меняется.** Запись потока по правилам NTFS считается
-  записью в файл, поэтому время снимается до записи и возвращается после —
-  иначе простая раскраска выглядела бы для бэкапа и синхронизации как правка.
+| Colored dots | Tag labels |
+| --- | --- |
+| ![Colored dots beside file rows in File Explorer](assets/circles.png) | ![Colored tag labels beside file rows in File Explorer](assets/tgas.png) |
 
-## Установка
+## Features
 
-Со страницы [Releases](https://github.com/vldpotapov/ColorTags/releases):
+- **Seven colors:** red, orange, yellow, green, blue, purple, and gray. Rename
+  each tag; the custom name appears in the menu, column, and label.
+- **Explorer context menu:** apply or remove a tag, including for several
+  selected files at once.
+- **Tags column in Details view:** displays the tag name in label mode. In dot
+  mode the cell is empty and the external overlay draws the color.
+- **Colored indicators:** show a dot or a colored label beside each tagged row.
+- **Tray settings:** edit tag names, display mode, scrolling behavior, and check
+  for updates.
+- **Tags stored in files on NTFS:** the `:ColorTag` alternate data stream stays
+  with a file when it is renamed or moved within an NTFS volume. On volumes
+  without stream support, the menu uses a local SQLite database; those tags
+  depend on the database on that computer.
+- **Preserved modification time:** the file's modification timestamp is saved
+  before writing its tag and restored afterward.
 
-- `ColorTags-Setup-*.exe` — внешний слой (кружки, подписи, окно настроек).
-  Ставится в профиль пользователя, прав администратора не просит.
-- `ColorTags-Explorer-*.zip` — внешний слой и расширение оболочки: контекстное
-  меню и колонка Tags. Для регистрации расширения нужны Python 3.9+, UAC и Windows SDK.
+## Installation
 
-Подробности и порядок действий — в [INSTALL.md](INSTALL.md).
+Download a package from [Releases](https://github.com/vldpotapov/ColorTags/releases):
 
-Бинарники не подписаны, поэтому Windows может показать предупреждение
-SmartScreen. Проверяйте источник файла перед запуском.
+- **`ColorTags-Setup-*.exe`** installs the visual overlay: dots, labels, and
+  settings. It installs for the current user without administrator privileges,
+  with an optional startup entry. The installer is English-only and asks a
+  running ColorTags overlay to stop during an update.
+- **`ColorTags-Explorer-*.zip`** includes the overlay and shell extension for
+  the context menu and Tags column. Registering the extension requires
+  **Python 3.9+**, **Windows SDK signing tools**, and administrator approval.
 
-## Настройки
-
-Левый клик по значку в трее открывает окно: названия всех семи тегов, показывать
-кружок или название, прятать слой при прокрутке или вести за строками, проверка
-обновлений. «Save» применяет всё сразу и обновляет открытые окна Проводника.
-
-Те же значения лежат в `HKCU\Software\ColorTags`, если удобнее скриптом:
-
-| Значение | Смысл |
-|---|---|
-| `DisplayMode` | `0` кружок, `1` метка с названием |
-| `ScrollBehavior` | `hide` прятать слой при прокрутке, `follow` вести за строками |
-| `ColumnFormat` | `label`, `emoji`, `emoji-label` — что показывать в колонке Tags |
-| `Labels\<id>` | название тега; пусто — название по умолчанию |
-| `TraceFile` | путь к файлу трассировки обработчика свойств; пусто — выключено |
-
-Скриптовый доступ — `src\VisualNative\Set-ColorTagsSettings.ps1`.
-
-## Как устроено
-
-Три части, каждая делает ровно то, на что Windows даёт штатный способ:
-
-1. **Хранилище.** Тег пишется в поток `:ColorTag` рядом с файлом (UTF-8, без
-   BOM). На томах без NTFS есть запасное хранилище SQLite.
-2. **Расширение оболочки** (`ColorTagsMenu.dll`) — `IExplorerCommand` для меню и
-   обработчик свойств, который отдаёт Проводнику значение колонки Tags через
-   `System.Keywords`. Регистрируется как sparse-пакет MSIX: современное меню
-   Windows 11 иначе не получить.
-3. **Внешний слой** (`ColorTagsOverlay.exe`) — отдельное слоёное окно над
-   Проводником, которое рисует цвет. Строки находит через UI Automation, пути к
-   файлам — через `IShellWindows`/`IFolderView`. Ничего не внедряет в чужой
-   процесс и не трогает его память.
-
-Цвета и названия по умолчанию лежат в `src/Shared/ColorTagsConfig.h`;
-оттуда их берут меню, колонка, слой и генератор иконок.
-
-## Сборка
-
-Нужен портативный llvm-mingw (clang++, llvm-rc). Путь задаётся параметром
-`-ClangBin` у обоих скриптов сборки.
+For the ZIP, extract the entire archive to a permanent folder. To register the
+context menu and column, open PowerShell in that folder and run:
 
 ```powershell
-# Расширение оболочки: меню и колонка
-.\src\ShellExtension\build.ps1
-.\src\ShellExtension\register.ps1 -RestartExplorer   # запросит UAC
-
-# Внешний слой
-.\ColorTags-Rebuild.cmd    # остановить, пересобрать, запустить
+cd ShellExtension
+.\register.ps1 -RestartExplorer
 ```
 
-Python 3.9+ нужен для работы контекстного меню и запасного хранилища SQLite.
-Внешний слой из установщика работает без Python.
+Keep the extracted folder in place: the menu runs the Python modules from it.
+Registration creates a local MSIX signing certificate and trusts it on the
+computer. Use `unregister.ps1` to remove the extension registration.
 
-Иконки меню рисует `src\ShellExtension\make_icon_art.py` по той же палитре;
-`make_icons.py` заворачивает PNG в ICO.
+To run the portable overlay, use `Overlay\Start ColorTags.cmd`; use
+`Overlay\Stop ColorTags.cmd` to stop it. The overlay works without Python.
 
-Иконка приложения — `assets/app-icon.svg`. Из неё `tools/make_app_icon.py`
-собирает `src/VisualNative/icons/app.ico` (девять размеров, каждый отрисован из
-вектора, а не уменьшен из большого) и логотипы пакета. Скрипту нужны Playwright
-и Chromium, потому что в SVG есть фильтры, которые обычные конвертеры теряют;
-результат закоммичен, поэтому обычной сборке ни Python, ни браузер не нужны.
-Оформление установщика лежит в `installer/assets`; ICO пересоздаётся из
-исходного PNG скриптом `tools/make_setup_icon.ps1`.
+See [INSTALL.md](INSTALL.md) for additional installation and removal details.
+The binaries are not code-signed, so Windows may show a SmartScreen warning.
+Verify the file's source before running it.
 
-## Релиз
+## Settings
 
-Сборку делает GitHub Actions (`.github/workflows/release.yml`): на каждый пуш в
-`main` — сборка на Windows-раннере и артефакты, на тег `v*` — архив,
-установщик (`installer\ColorTags.iss`, Inno Setup) и сам релиз.
+Left-click the tray icon to open settings. You can rename all seven tags,
+choose dots or labels, hide indicators while scrolling or make them follow
+the rows, and check for updates. Apply your changes with the OK button;
+ColorTags refreshes the open Explorer windows.
+
+The same settings are stored under `HKCU\Software\ColorTags`:
+
+| Value | Meaning |
+| --- | --- |
+| `DisplayMode` | `0` for dots, `1` for named labels |
+| `ScrollBehavior` | `hide` to hide during scrolling, `follow` to follow the rows |
+| `ColumnFormat` | `label`, `emoji`, or `emoji-label` for the native Tags column |
+| `Labels\<id>` | Custom tag name; empty uses the default name |
+| `TraceFile` | Property-handler trace file path; empty disables tracing |
+
+For scripting, use `src\VisualNative\Set-ColorTagsSettings.ps1`.
+
+## How it works
+
+ColorTags has three parts:
+
+1. **Storage:** writes a UTF-8 tag without a BOM to the `:ColorTag` alternate
+   data stream. A local SQLite database provides fallback storage on volumes
+   without stream support.
+2. **Shell extension** (`ColorTagsMenu.dll`): provides an `IExplorerCommand`
+   context menu and a property handler that exposes the Tags column through
+   `System.Keywords`. The menu is registered through an MSIX package.
+3. **Visual overlay** (`ColorTagsOverlay.exe`): a separate layered window over
+   Explorer. It uses UI Automation to locate rows and
+   `IShellWindows`/`IFolderView` to resolve file paths. It does not inject code
+   into Explorer or read its process memory.
+
+Default colors and names are defined in `src/Shared/ColorTagsConfig.h` and
+shared by the menu, column, overlay, and icon generator.
+
+## Building
+
+Use a portable llvm-mingw toolchain with `clang++` and `llvm-rc`. Pass its
+directory with the `-ClangBin` parameter to either build script.
+
+```powershell
+# Shell extension: context menu and Tags column
+.\src\ShellExtension\build.ps1
+.\src\ShellExtension\register.ps1 -RestartExplorer   # requests administrator approval
+
+# Visual overlay: stop, rebuild, and start
+.\ColorTags-Rebuild.cmd
+```
+
+Python 3.9+ is required for the context menu and SQLite fallback. The visual
+overlay from the installer works without Python.
+
+`src\ShellExtension\make_icon_art.py` generates menu artwork from the shared
+palette; `make_icons.py` converts the PNG files to ICO.
+
+The application icon comes from `assets/app-icon.svg`.
+`tools/make_app_icon.py` generates `src/VisualNative/icons/app.ico` in nine
+sizes, each rendered from the vector, plus the package logos. Regeneration
+requires Playwright and Chromium to preserve the SVG filters. Generated
+assets are committed, so ordinary native builds need neither Python nor a
+browser.
+
+Installer artwork lives in `installer/assets`.
+`tools/make_setup_icon.ps1` regenerates the installer ICO from its source PNG.
+
+## Releases
+
+GitHub Actions (`.github/workflows/release.yml`) builds Windows artifacts on
+each push to `main`. A `v*` tag also creates a ZIP, an Inno Setup installer,
+and a GitHub release.
 
 ```powershell
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-Версия берётся из файла `VERSION`; сборка по тегу перезаписывает его значением
-тега, поэтому бинарник, установщик и релиз не могут разойтись.
+Development builds read their version from `VERSION`. For a tagged release,
+the workflow replaces it with the tag version before building the binaries
+and installer.
 
-## Состав репозитория
+## Repository layout
 
+```text
+src/Core             Platform-independent tag model and service
+src/Storage          ADS, SQLite, and storage routing
+src/Cli              Command-line tag operations used by the menu
+src/Shared           Shared colors and default names
+src/ShellExtension   COM DLL: menu, property handler, and icon overlays
+src/VisualNative     Visual overlay and settings window
+assets               Application icon source and README screenshots
+installer            Inno Setup script and artwork
+tests                Core tests and native smoke tests
+docs                 Research and findings from explored approaches
+docs/history         Earlier development roadmaps
 ```
-src/Core             модель тега и сервис, без привязки к платформе
-src/Storage          ADS, SQLite и маршрутизация между ними
-src/Cli              командная строка, единственный источник истины для логики
-src/Shared           общая таблица цветов и названий для всех поверхностей
-src/ShellExtension   COM DLL: меню, обработчик свойств, значки-оверлеи
-src/VisualNative     внешний слой и окно настроек
-installer            Inno Setup
-tests                тесты ядра и нативные smoke-тесты
-docs                 исследования и вердикты по закрытым путям
-docs/history         роадмапы, по которым шла работа
-```
 
-## Диагностика
+## Diagnostics
 
-```
+```text
 ColorTags-Diagnose.cmd
 ```
 
-Собирает в `temp\diagnostics.txt` версию сборки и коммит, настройки, все окна и
-вкладки Проводника так, как их видит шелл, и состояние слоя: что он просканировал,
-сколько строк увидел, сколько индикаторов нарисовал и где. Это первое, что стоит
-посмотреть, если что-то ведёт себя не так.
+Writes `temp\diagnostics.txt` with the build version and commit, settings,
+Explorer windows and tabs reported by the shell, and overlay state: scanned
+rows, drawn indicators, and their positions. Use this report when diagnosing
+unexpected behavior.
 
-## Ограничения
+## Limitations
 
-- Слой рисуется отдельным окном поверх Проводника, а не внутри него. При
-  прокрутке и перетаскивании окна он не синхронизирован с содержимым по кадрам:
-  по умолчанию на время прокрутки прячется, чтобы не уезжать от строк.
-- В папке с группировкой (например по дате) индикаторы могут вставать не на свои
-  строки: заголовки групп нарушают равномерный шаг строк.
-- Теги хранятся в потоках NTFS. Копирование на FAT/exFAT, упаковка в ZIP и
-  некоторые облачные клиенты потоки теряют.
-- Бинарники не подписаны.
+- The overlay is a separate window. Scrolling and window movement cannot be
+  synchronized with Explorer frame by frame. By default, indicators hide
+  while scrolling; follow mode can lag.
+- Grouped views can misalign indicators because group headers interrupt the
+  regular row spacing.
+- File types with an existing native property handler are skipped when
+  registering the Tags column handler.
+- Copying tagged files to FAT/exFAT, ZIP archives, or some cloud services can
+  discard NTFS alternate streams.
+- The binaries are not code-signed.
 
----
+## Approaches explored
 
-# Что пробовали и почему закрыли
+The central challenge is drawing color inside Explorer's file list.
+The research documents record the alternatives tested during development.
 
-Вся задача упирается в один вопрос: **откуда взять цвет в списке Проводника**.
-Windows 11 не даёт на это штатного API, поэтому путей было проверено много.
-Ниже — каждый, с тем, чем он кончился. Подробные замеры лежат в `docs/`.
+### Custom property icons
 
-### Своя схема свойств с картинками — закрыто
+A custom property with `displayType="Enumerated"` and
+`<drawControl control="IconList"/>` was intended to make Explorer draw a native
+colored icon in the column. Property values reached Explorer, and other draw
+controls worked, but `IconList` was discarded during schema registration
+across the tested variants. The column therefore uses text in label mode.
 
-Идея: зарегистрировать собственное свойство с `displayType="Enumerated"` и
-`<drawControl control="IconList"/>`, чтобы Проводник сам рисовал цветной значок в
-колонке — так работают, например, звёзды рейтинга.
+### Emoji in the column
 
-Проверено измерением, а не рассуждением: `drawControl` для собственных свойств
-действительно учитывается и цвет рисует (рейтинг рисуется золотыми звёздами);
-обработчик свойств действительно спрашивают, и значение доходит. Но именно
-`control="IconList"` молча отбрасывается при регистрации схемы — проверено на
-восьми вариантах схемы, со свежими и переиспользованными идентификаторами, в обеих
-формах `searchInfo` и обеих формах ссылки на картинку. Остаётся текст — он и
-используется в режиме «название».
+Returning `🔴` is simple, but the tested Windows 11 Details view rendered it
+as a monochrome glyph. It did not provide a reliable colored indicator.
 
-### Эмодзи в колонке — закрыто
+### Shell icon overlays
 
-Самый дешёвый способ получить цвет: вернуть в колонку `🔴`. Windows 11 рисует
-эмодзи в Details View монохромным глифом — в трассировке видно, что значение
-колонки `"🔴"`, а на экране серый кружок.
+`IShellIconOverlayIdentifier` works as an optional feature, but Windows has
+only 15 system-wide overlay slots. Other applications can occupy them, so
+the registration script enables only the red tag by default.
+See [the icon overlay findings](docs/ICON_OVERLAY_COLOR_SPIKE_VERDICT.md).
 
-### Значки-оверлеи поверх иконок — работает, но мест мало
+### Full-row tinting
 
-`IShellIconOverlayIdentifier` работает и доступен как необязательная
-возможность. Ограничение системное: на всю Windows 15 слотов, которые
-раздаются по алфавиту; на машине разработчика их занято 21 — OneDrive, Dropbox и
-прочие. Поэтому по умолчанию регистрируется только красный.
-См. [docs/ICON_OVERLAY_COLOR_SPIKE_VERDICT.md](docs/ICON_OVERLAY_COLOR_SPIKE_VERDICT.md).
+No supported way was established to color an Explorer row and reliably map
+it to its file from an external process. The research branch was closed for
+other reasons, and its conclusion was not revalidated.
+See [the row tinting findings](docs/PHASE7_ROW_TINT_VERDICT.md).
 
-### Заливка строки целиком — закрыто
+### Inline context-menu palette
 
-Покрасить фон строки как в Finder. Новый Проводник на WinUI 3 не даёт
-поддерживаемого способа дотянуться до визуального дерева чужого процесса и
-связать строку с файлом. См.
-[docs/PHASE7_ROW_TINT_VERDICT.md](docs/PHASE7_ROW_TINT_VERDICT.md) — с оговоркой,
-записанной прямо в файле: ветка закрыта по другим причинам, вывод не
-перепроверялся.
+A horizontal row of color choices remains a possible future feature.
+The modern Windows 11 context menu does not expose arbitrary custom controls.
+See [the inline palette research](docs/INLINE_PALETTE_RESEARCH.md).
 
-### Цветная палитра прямо в контекстном меню — в бэклоге
+### Current approach
 
-Горизонтальный ряд цветных кружков внутри меню, как в Finder. Современное меню
-Windows 11 своих произвольных элементов не рисует.
-См. [docs/INLINE_PALETTE_RESEARCH.md](docs/INLINE_PALETTE_RESEARCH.md).
+Explorer draws native tag text, which stays aligned with its rows, while the
+external overlay adds color. Documented out-of-process APIs provide row
+geometry and file paths.
+See [the row mapping research](docs/UIA_ROW_MAPPING_SPIKE.md).
 
-### Что в итоге работает
+The remaining tradeoff is scrolling: an external window cannot share
+Explorer's rendering frames. The settings control this behavior but do not
+eliminate the synchronization limit.
 
-Связка «родной текст + свой слой»: колонку с названиями рисует сам Проводник
-(поэтому текст всегда на своём месте и не отстаёт при прокрутке), а цвет
-добавляет слой поверх. Строки он находит через документированные
-out-of-process API — UI Automation для геометрии и `IShellWindows`/`IFolderView`
-для путей, — а не через чтение чужой памяти. См.
-[docs/UIA_ROW_MAPPING_SPIKE.md](docs/UIA_ROW_MAPPING_SPIKE.md).
+## License
 
-Остался один неустранимый недостаток этого подхода: внешнее окно нельзя
-синхронизировать с Проводником по кадрам. Отсюда поведение при прокрутке,
-которое настраивается, но не исчезает.
-
-## Лицензия
-
-MIT, см. [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
