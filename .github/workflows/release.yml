@@ -86,6 +86,14 @@ jobs:
         shell: pwsh
         run: ./tests/run_package_smoke.ps1 -PackageRoot package
 
+      - name: Prepare bundled runtime and signed menu package
+        shell: pwsh
+        run: ./tools/prepare-installer.ps1 -PackageRoot package
+
+      - name: Test the self-contained package
+        shell: pwsh
+        run: ./tests/run_package_smoke.ps1 -PackageRoot package -SelfContained
+
       - name: Build the installer
         shell: pwsh
         run: |
@@ -98,10 +106,14 @@ jobs:
           } else {
               '0.0.0-dev'
           }
-          & $compiler "/DAppVersion=$version" '/DPayload=..\package\Overlay' `
+          & $compiler "/DAppVersion=$version" '/DPayload=..\package' `
               installer\ColorTags.iss
           if ($LASTEXITCODE -ne 0) { throw 'the installer failed to compile' }
           Get-ChildItem dist
+
+      - name: Test install and uninstall on the disposable runner
+        shell: pwsh
+        run: ./tests/run_installer_smoke.ps1 -Installer (Get-ChildItem dist/*.exe | Select-Object -First 1).FullName
 
       - name: Upload the build artifacts
         uses: actions/upload-artifact@v4
@@ -121,5 +133,7 @@ jobs:
           $zip = "ColorTags-Explorer-$tag.zip"
           Compress-Archive -Path package/* -DestinationPath $zip -Force
           $installer = (Get-ChildItem dist/*.exe | Select-Object -First 1).FullName
+          $notes = "docs/releases/$tag.md"
+          $noteArgs = if (Test-Path $notes) { @('--notes-file', $notes) } else { @('--generate-notes') }
           gh release create $tag $zip $installer `
-              --title "ColorTags Explorer $tag" --generate-notes
+              --title "ColorTags Explorer $tag" @noteArgs

@@ -1,69 +1,72 @@
-# Установка
+# Installation
 
-Windows 11. Установщик внешнего слоя не требует дополнительных сред выполнения.
-Для контекстного меню из архива нужен Python 3.9+ в `PATH`; для регистрации
-расширения также нужны Windows SDK и права администратора.
+Windows 11, x64. Download from the [official releases](https://github.com/vldpotapov/ColorTags/releases).
 
-На странице Releases два файла: **ColorTags-Setup-*.exe** — установщик
-внешнего слоя, и **ColorTags-Explorer-*.zip** — внешний слой и расширение
-оболочки для отдельной регистрации.
+## Recommended: installer
 
-## Установщик (проще всего)
+Run `ColorTags-Setup-1.0.1.exe`. It installs the **Tags** context menu, Tags column,
+colored indicators and tray settings in `%LOCALAPPDATA%\Programs\ColorTags`.
+Python and Windows SDK are not required: setup contains an isolated Python
+runtime and a signed menu package.
 
-`ColorTags-Setup-…exe` ставит внешний слой в `%LOCALAPPDATA%\Programs\ColorTags`
-— без прав администратора, с ярлыком в меню «Пуск», необязательным автозапуском
-и обычным удалением через «Установка и удаление программ». Установщик не
-подписан, поэтому Windows может показать предупреждение SmartScreen. Проверяйте
-источник файла перед запуском. Расширение оболочки он не ставит — для меню и колонки Tags нужен архив
-и раздел ниже.
-При обновлении установщик предлагает закрыть запущенную старую версию и после
-установки может запустить новую.
+Approve the administrator prompts for the menu certificate and column handler.
+Run setup normally as the user who will use ColorTags; do not start it with a
+different administrator account. Setup is English-only and startup is optional.
+The EXE has no commercial code-signing certificate; Windows may show SmartScreen.
 
-## Архив
+Right-click a file or folder and open **Tags**. In Details view, enable the
+**Tags** column using the column header's **More...** dialog. Left-click the tray
+icon to change tag names and display settings. If Explorer still shows its cached
+menu, reopen Explorer or sign out and back in.
 
-Скачайте архив со страницы Releases и распакуйте в постоянную папку. Не
-перемещайте её после регистрации меню: оно запускает Python-модули из этой
-папки. Архив содержит эти модули в `src`.
+## Upgrade from 1.0.0
 
-## Внешний слой (кружки и подписи, окно настроек)
+Run the new installer over the existing installation. It stops the old overlay
+and adds the missing menu and column registration. The 1.0.0 EXE installed only
+the overlay. File tags and custom labels are preserved.
 
-Работает без установки и без прав администратора:
+Registration errors are reported by setup and logged in
+`%LOCALAPPDATA%\Colortags\setup-integration.log`. Resolve the cause (for example,
+declined administrator access) and rerun setup. Managed computers may forbid
+self-signed MSIX packages; their administrator must allow the package.
 
-1. `Overlay\Start ColorTags.cmd` — запускает слой, в трее появляется значок.
-2. Левый клик по значку — окно настроек: названия тегов, кружок или подпись,
-   поведение при прокрутке. Правый клик — Settings / Quit.
-3. `Overlay\Stop ColorTags.cmd` — остановить.
+## Manual ZIP installation
 
-При первом запуске Windows может показать предупреждение SmartScreen: бинарник
-не подписан. Проверяйте источник файла перед запуском.
-
-Чтобы слой поднимался вместе с системой, положите ярлык на
-`ColorTagsOverlay.exe` в папку автозагрузки (`shell:startup`).
-
-## Расширение оболочки (меню и колонка Tags)
-
-Требуются Python 3.9+ в `PATH`, права администратора и установленный Windows SDK — регистрация
-упаковывает и подписывает MSIX через `makeappx.exe` и `signtool.exe`
-(достаточно компонента «Windows SDK Signing Tools»).
+Extract the entire ZIP to a permanent folder. Open PowerShell in that folder:
 
 ```powershell
-cd ShellExtension
-.\register.ps1 -RestartExplorer          # запросит UAC
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ShellExtension\register.ps1 -RestartExplorer
 ```
 
-Скрипт сам находит самый новый установленный SDK; если он лежит нестандартно,
-укажите папку явно: `.\register.ps1 -SdkTools 'C:\...\bin\10.0.22621.0\x64'`.
+Save Explorer work first: `-RestartExplorer` restarts Explorer. Approve the
+administrator prompts. The release includes Python and the public MSIX
+certificate. Do not move the extracted folder after registration: the menu runs
+Python modules from it. Private signing keys are never distributed.
 
-Удаление: `.\unregister.ps1`.
-Регистрация создаёт локальный сертификат для MSIX и добавляет его в доверенные
-для компьютера; скрипт удаления удаляет созданную им регистрацию и сертификат.
+Start `Overlay\Start ColorTags.cmd`; stop with `Overlay\Stop ColorTags.cmd`.
+The overlay itself does not require Python. For automatic startup, add a shortcut
+to `Overlay\ColorTagsOverlay.exe` in `shell:startup`.
 
-Значки-оверлеи поверх иконок ставятся отдельно и по умолчанию только для
-красного: `.\register_icon_overlays.ps1`. Windows выделяет на всю систему 15
-слотов и раздаёт их по алфавиту, так что на машине с OneDrive или Dropbox
-свободных может не остаться — скрипт покажет, сколько занято.
+## Removal
 
-## Где лежат сами теги
+For the EXE, uninstall through Windows Settings. Approve the prompts to remove
+column registration and certificates added by setup. For the ZIP, stop the
+overlay and run:
 
-В потоке `:ColorTag` рядом с файлом. Удаление программы теги не трогает; чтобы
-снять тег, снимите его через меню или удалите поток.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ShellExtension\unregister.ps1
+```
+
+Uninstall preserves file tags, custom labels and overlay preferences. Remove
+individual tags through the menu before uninstalling if desired.
+
+## Developer registration
+
+Source builds require Python 3.9+, Windows SDK signing tools and administrator
+approval. `register.ps1` discovers an installed SDK; use `-SdkTools` for a custom
+location. `tools/prepare-installer.ps1` prepares the embedded runtime and signed
+MSIX on the build machine, so development tools are not needed on user computers.
+
+Optional icon overlays are registered separately with `register_icon_overlays.ps1`.
+Windows permits only 15 overlay slots system-wide. Use
+`unregister_icon_overlays.ps1` to remove this optional feature.

@@ -19,6 +19,7 @@ param(
     [switch]$ValidatePackage,
     [switch]$ReconcilePropertyHandlers,
     [string]$SdkTools,
+    [string]$PythonPath,
     [string[]]$Extensions = @(
         '.txt', '.md', '.log', '.ini', '.cfg', '.conf', '.csv', '.json', '.xml',
         '.html', '.htm', '.css', '.js', '.mjs', '.ts', '.tsx', '.jsx', '.py',
@@ -113,7 +114,8 @@ function Resolve-SdkTools {
            "component is enough) or pass -SdkTools <folder containing makeappx.exe>.")
 }
 
-$tools = Resolve-SdkTools -Preferred $SdkTools
+$prebuilt = Test-Path -LiteralPath (Join-Path $out 'ColorTags.msix')
+if (-not $prebuilt) { $tools = Resolve-SdkTools -Preferred $SdkTools }
 $work = Join-Path $env:TEMP "colortags_msix"
 New-Item -ItemType Directory -Path $work -Force | Out-Null
 
@@ -122,12 +124,18 @@ $propClsid = "{C9E3056C-1843-4196-A716-83D5B77F8312}"
 
 # 1. config for the DLL
 $python = $null
-foreach ($commandName in @('python', 'py')) {
+if ($PythonPath -and -not (Test-Path -LiteralPath $PythonPath -PathType Leaf)) {
+    throw 'The supplied Python runtime is missing.'
+}
+$bundledPython = Join-Path $projectRoot 'Runtime\python.exe'
+foreach ($commandName in @($PythonPath, $bundledPython, 'python', 'py')) {
+    if (-not $commandName) { continue }
     $candidate = Get-Command $commandName -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if (-not $candidate) { continue }
     & $candidate.Source -c 'import sys; assert sys.version_info >= (3, 9)' 2>$null
     if ($LASTEXITCODE -eq 0) { $python = $candidate.Source; break }
+    if ($PythonPath) { throw 'The supplied Python runtime failed validation.' }
 }
 if (-not $python) {
     throw 'ColorTags requires Python 3.9 or later. Make python or py available in PATH.'
@@ -136,7 +144,20 @@ New-Item -Path "HKCU:\Software\ColorTags" -Force | Out-Null
 Set-ItemProperty -Path "HKCU:\Software\ColorTags" -Name "PythonPath" -Value $python
 Set-ItemProperty -Path "HKCU:\Software\ColorTags" -Name "ProjectRoot" -Value $projectRoot
 
-# 2. self-signed code-signing cert (reuse if present), trusted in
+# 2. A release contains a signed package and its PUBLIC certificate. Developer
+# builds keep the original local pack/sign path. Private keys never ship.
+if ($prebuilt) {
+    $cer = Join-Path $out 'ColorTags.cer'
+    if (-not (Test-Path -LiteralPath $cer)) { throw 'Package certificate is missing.' }
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($cer)
+    if ($cert.Subject -ne 'CN=ColorTags') { throw 'Unexpected package certificate publisher.' }
+    $msix = Join-Path $out 'ColorTags.msix'
+    $signature = Get-AuthenticodeSignature -FilePath $msix
+    if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Thumbprint -ne $cert.Thumbprint) {
+        throw 'Menu package signature does not match its certificate.'
+    }
+} else {
+# self-signed code-signing cert (reuse if present), trusted in
 #    LocalMachine\TrustedPeople as required by MSIX deployment.
 $cert = Get-ChildItem Cert:\CurrentUser\My |
     Where-Object { $_.Subject -eq "CN=ColorTags" -and $_.EnhancedKeyUsageList.ObjectId -contains "1.3.6.1.5.5.7.3.3" } |
@@ -148,12 +169,6 @@ if (-not $cert) {
 }
 $cer = Join-Path $work "ColorTags.cer"
 Export-Certificate -Cert $cert -FilePath $cer -Force | Out-Null
-$trustProcess = Start-Process certutil.exe `
-    -ArgumentList '-addstore', 'TrustedPeople', "`"$cer`"" `
-    -Verb RunAs -Wait -PassThru -WindowStyle Hidden
-if ($trustProcess.ExitCode -ne 0) {
-    throw "Failed to trust the package certificate (certutil exit $($trustProcess.ExitCode))."
-}
 $pfx = Join-Path $work "ColorTags.pfx"
 # Random per run. The certificate is self-signed, created here and used only
 # to sign the local package, so the password protects nothing - but a fixed
@@ -167,6 +182,24 @@ $msix = Join-Path $work "ColorTags.msix"
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
 & "$tools\signtool.exe" sign /fd SHA256 /f $pfx /p $pw $msix
 if ($LASTEXITCODE -ne 0) { throw "signtool failed ($LASTEXITCODE)" }
+Remove-Item -LiteralPath $pfx -Force
+}
+
+if (-not (Test-Path "Cert:\LocalMachine\TrustedPeople\$($cert.Thumbprint)")) {
+    $trustProcess = Start-Process certutil.exe `
+        -ArgumentList '-addstore', 'TrustedPeople', "`"$cer`"" `
+        -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+    if ($trustProcess.ExitCode -ne 0) {
+        throw "Failed to trust the package certificate (certutil exit $($trustProcess.ExitCode))."
+    }
+# Track only certificates trusted by this registration for precise cleanup.
+$certificateKey = 'HKCU:\Software\ColorTags\PackageCertificates'
+New-Item -Path $certificateKey -Force | Out-Null
+Set-ItemProperty -Path $certificateKey -Name $cert.Thumbprint -Value 1 -Type DWord
+}
+if ((Get-AuthenticodeSignature -FilePath $msix).Status -ne 'Valid') {
+    throw 'Menu package signature validation failed after trusting its certificate.'
+}
 
 # 4. install per-user (remove any previous install of the same package first)
 $old = Get-AppxPackage -Name "ColorTags.ExplorerMenu" -ErrorAction SilentlyContinue
@@ -312,8 +345,7 @@ if ($machineChanges -gt 0) {
         }
         $hklmApplied = $true
     } catch {
-        Write-Warning "HKLM modern path NOT applied (UAC declined?): $($_.Exception.Message)"
-        Write-Warning "Without it Explorer will NOT read tags. Re-run and approve the UAC prompt."
+        throw "Property handler registration failed. Approve administrator access and run setup again. $($_.Exception.Message)"
     }
 }
 

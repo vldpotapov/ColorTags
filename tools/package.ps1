@@ -29,6 +29,10 @@ foreach ($required in @(
     }
 }
 
+$Destination = [IO.Path]::GetFullPath((Join-Path $root $Destination))
+if (-not $Destination.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Package destination must be inside the repository.'
+}
 if (Test-Path -LiteralPath $Destination) {
     Remove-Item -LiteralPath $Destination -Recurse -Force
 }

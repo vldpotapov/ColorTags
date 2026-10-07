@@ -43,25 +43,35 @@ Right-click a file, open **Tags**, and choose a color or **Remove tag**.
 
 Download a package from [Releases](https://github.com/vldpotapov/ColorTags/releases):
 
-- **`ColorTags-Setup-*.exe`** installs the visual overlay: dots, labels, and
-  settings. It installs for the current user without administrator privileges,
-  with an optional startup entry. The installer is English-only and asks a
-  running ColorTags overlay to stop during an update.
-- **`ColorTags-Explorer-*.zip`** includes the overlay and shell extension for
-  the context menu and Tags column. Registering the extension requires
-  **Python 3.9+**, **Windows SDK signing tools**, and administrator approval.
+- **`ColorTags-Setup-*.exe`** installs the complete application: the **Tags
+  context menu**, Tags column, colored indicators, and tray settings. Python
+  is bundled; you do not need Python or Windows SDK installed. Setup is
+  English-only, installs for the current user, and offers optional startup.
+  Approve the administrator prompts for the package certificate and column
+  registration. Setup closes the old overlay when updating.
+- **`ColorTags-Explorer-*.zip`** includes the same runtime and signed menu
+  package for manual installation. Administrator approval is still required
+  for registration; Python and Windows SDK are not required on your computer.
+
+**Upgrading from 1.0.0:** run the new installer over your existing installation.
+Version 1.0.0's EXE installed only the overlay; 1.0.1 also registers the menu.
+Your tags and custom labels are preserved. Reopen Explorer or sign out and
+back in if it still shows the old context menu.
 
 For the ZIP, extract the entire archive to a permanent folder. To register the
 context menu and column, open PowerShell in that folder and run:
 
 ```powershell
 cd ShellExtension
-.\register.ps1 -RestartExplorer
+powershell -NoProfile -ExecutionPolicy Bypass -File .\register.ps1 -RestartExplorer
 ```
 
 Keep the extracted folder in place: the menu runs the Python modules from it.
-Registration creates a local MSIX signing certificate and trusts it on the
-computer. Use `unregister.ps1` to remove the extension registration.
+Registration trusts the supplied public MSIX certificate on the computer.
+Private signing keys are never distributed. Use `unregister.ps1` to remove
+the extension registration, or uninstall the EXE through Windows Settings.
+If setup reports an integration error, see
+`%LOCALAPPDATA%\Colortags\setup-integration.log` and rerun setup after resolving it.
 
 To run the portable overlay, use `Overlay\Start ColorTags.cmd`; use
 `Overlay\Stop ColorTags.cmd` to stop it. The overlay works without Python.
@@ -123,8 +133,9 @@ directory with the `-ClangBin` parameter to either build script.
 .\ColorTags-Rebuild.cmd
 ```
 
-Python 3.9+ is required for the context menu and SQLite fallback. The visual
-overlay from the installer works without Python.
+For development builds, Python 3.9+ and Windows SDK signing tools are required
+to register the menu. Published packages include a private Python runtime
+and a signed MSIX; these tools are needed only on the build machine.
 
 `src\ShellExtension\make_icon_art.py` generates menu artwork from the shared
 palette; `make_icons.py` converts the PNG files to ICO.

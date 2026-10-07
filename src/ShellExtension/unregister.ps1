@@ -87,6 +87,11 @@ Get-ChildItem -LiteralPath $localDllDir -Filter "ColorTagsMenu*.dll" -File -Erro
 $ownedThumbprints = @(Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
     Where-Object { $_.Subject -eq "CN=ColorTags" } |
     ForEach-Object Thumbprint)
+$certificateKey = 'HKCU:\Software\ColorTags\PackageCertificates'
+if (Test-Path $certificateKey) {
+    $ownedThumbprints += @((Get-Item $certificateKey).Property |
+        Where-Object { $_ -match '^[A-Fa-f0-9]{40}$' })
+}
 foreach ($store in @("Cert:\CurrentUser\My", "Cert:\CurrentUser\TrustedPeople", "Cert:\CurrentUser\Root")) {
     Get-ChildItem $store -ErrorAction SilentlyContinue |
         Where-Object { $_.Subject -eq "CN=ColorTags" } |
@@ -104,4 +109,5 @@ foreach ($certificate in $machineCertificates) {
     }
 }
 
+Remove-Item -Path $certificateKey -Recurse -Force -ErrorAction SilentlyContinue
 Write-Output "Unregistered."

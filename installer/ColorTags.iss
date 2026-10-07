@@ -1,13 +1,8 @@
-; Inno Setup script for the ColorTags overlay.
-;
-; Deliberately only the overlay: it needs no administrator rights and no
-; certificate, so it installs the same way for everyone. The shell extension
-; (context menu and the Tags column) is registered separately — it packs and
-; signs an MSIX, which needs the Windows SDK and a certificate the machine
-; trusts, and that does not belong in a per-user installer.
+; Full per-user product. Registration separately requests administrator access
+; for package certificate trust and the Explorer property handler.
 ;
 ; Built by CI:
-;   ISCC.exe /DAppVersion=1.0.0 /DPayload=..\package\Overlay installer\ColorTags.iss
+;   ISCC.exe /DAppVersion=1.0.1 /DPayload=..\package installer\ColorTags.iss
 
 #define AppName "ColorTags"
 #define AppPublisher "vldpotapov"
@@ -17,7 +12,7 @@
   #define AppVersion "0.0.0-dev"
 #endif
 #ifndef Payload
-  #define Payload "..\package\Overlay"
+#define Payload "..\package"
 #endif
 
 [Setup]
@@ -29,7 +24,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
-; Per-user: no UAC prompt, and nothing is written outside the user's profile.
+; Keep setup unelevated so MSIX and HKCU belong to the installing user.
 PrivilegesRequired=lowest
 DefaultDirName={localappdata}\Programs\ColorTags
 DefaultGroupName=ColorTags
@@ -57,9 +52,13 @@ RestartApplications=no
 Name: "startup"; Description: "{cm:AutoStartProgram,ColorTags}"
 
 [Files]
-Source: "{#Payload}\ColorTagsOverlay.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#Payload}\Stop-ColorTagsOverlay.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#Payload}\Set-ColorTagsSettings.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Payload}\Overlay\ColorTagsOverlay.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Payload}\Overlay\Stop-ColorTagsOverlay.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Payload}\Overlay\Set-ColorTagsSettings.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Payload}\ShellExtension\*"; DestDir: "{app}\ShellExtension"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Payload}\Runtime\*"; DestDir: "{app}\Runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Payload}\src\*"; DestDir: "{app}\src"; Excludes: "__pycache__\*,*.pyc"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "integrate.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\INSTALL.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -111,4 +110,33 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   SignalOverlayStop();
   Result := '';
+end;
+
+function RunIntegration(Uninstall: Boolean): Boolean;
+var
+  Params: String;
+  ExitCode: Integer;
+begin
+  Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\installer\integrate.ps1') + '"';
+  if Uninstall then Params := Params + ' -Uninstall';
+  Result := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Params, '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  if Result then Result := ExitCode = 0;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then begin
+    if not RunIntegration(False) then
+      RaiseException('ColorTags Explorer integration failed. Approve the administrator prompts and run setup again. Details: %LOCALAPPDATA%\Colortags\setup-integration.log');
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then begin
+    SignalOverlayStop();
+    if not RunIntegration(True) then
+      RaiseException('Explorer integration could not be removed. Approve administrator access and retry uninstall. Details: %LOCALAPPDATA%\Colortags\setup-integration.log');
+  end;
 end;
