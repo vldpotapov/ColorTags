@@ -3,16 +3,22 @@ param([Parameter(Mandatory)][string]$Installer)
 $ErrorActionPreference = 'Stop'
 if (-not $env:GITHUB_ACTIONS) { throw 'Run this test only on a disposable GitHub Actions runner.' }
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\ColorTags-CI'
+$setupLog = Join-Path $env:TEMP 'colortags-installer-smoke.log'
 $setup = Start-Process -FilePath (Resolve-Path $Installer).Path `
     -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-',
-        "/DIR=`"$installDir`"", '/LOG' -Wait -PassThru
+        "/DIR=`"$installDir`"", "/LOG=`"$setupLog`"" -Wait -PassThru
 if ($setup.ExitCode -ne 0) {
     Get-Content (Join-Path $env:LOCALAPPDATA 'Colortags\setup-integration.log') -ErrorAction SilentlyContinue
     throw "Installer failed: $($setup.ExitCode)"
 }
 try {
     $pkg = Get-AppxPackage -Name 'ColorTags.ExplorerMenu'
-    if (-not $pkg) { throw 'Installer did not register the menu package.' }
+    if (-not $pkg) {
+        Get-Content $setupLog -ErrorAction SilentlyContinue | Select-Object -Last 85
+        Get-Content (Join-Path $env:LOCALAPPDATA 'Colortags\setup-integration.log') -ErrorAction SilentlyContinue
+        Get-AppxPackage -AllUsers -Name 'ColorTags.ExplorerMenu' | Format-List Name,PackageUserInformation
+        throw 'Installer did not register the menu package.'
+    }
     $config = Get-ItemProperty 'HKCU:\Software\ColorTags'
     if ($config.ProjectRoot -ne $installDir -or $config.PythonPath -ne (Join-Path $installDir 'Runtime\python.exe')) {
         throw 'Installer registered external Python or the wrong application root.'
