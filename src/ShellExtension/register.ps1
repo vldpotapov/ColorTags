@@ -140,7 +140,9 @@ foreach ($commandName in @($PythonPath, $bundledPython, 'python', 'py')) {
 if (-not $python) {
     throw 'ColorTags requires Python 3.9 or later. Make python or py available in PATH.'
 }
-New-Item -Path "HKCU:\Software\ColorTags" -Force | Out-Null
+if (-not (Test-Path 'HKCU:\Software\ColorTags')) {
+    New-Item -Path 'HKCU:\Software\ColorTags' | Out-Null
+}
 Set-ItemProperty -Path "HKCU:\Software\ColorTags" -Name "PythonPath" -Value $python
 Set-ItemProperty -Path "HKCU:\Software\ColorTags" -Name "ProjectRoot" -Value $projectRoot
 
@@ -194,7 +196,7 @@ if (-not (Test-Path "Cert:\LocalMachine\TrustedPeople\$($cert.Thumbprint)")) {
     }
 # Track only certificates trusted by this registration for precise cleanup.
 $certificateKey = 'HKCU:\Software\ColorTags\PackageCertificates'
-New-Item -Path $certificateKey -Force | Out-Null
+if (-not (Test-Path $certificateKey)) { New-Item -Path $certificateKey | Out-Null }
 Set-ItemProperty -Path $certificateKey -Name $cert.Thumbprint -Value 1 -Type DWord
 }
 if ((Get-AuthenticodeSignature -FilePath $msix).Status -ne 'Valid') {
