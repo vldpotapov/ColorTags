@@ -92,6 +92,16 @@ class AdsTagStoreTests(unittest.TestCase):
         finally:
             os.chmod(f, 0o666)
 
+    def test_tag_changes_preserve_precise_modification_time(self):
+        f = self._file()
+        timestamp = 1_728_000_000_123_456_700  # NTFS 100 ns precision
+        os.utime(f, ns=(timestamp, timestamp))
+        before = f.stat().st_mtime_ns
+        self.store.set_tag(f, TagColor.BLUE)
+        self.assertEqual(f.stat().st_mtime_ns, before)
+        self.store.remove_tag(f)
+        self.assertEqual(f.stat().st_mtime_ns, before)
+
     def test_long_path(self):
         long_dir = self.base / ("d" * 60)
         long_dir.mkdir()

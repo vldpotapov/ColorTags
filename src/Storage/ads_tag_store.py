@@ -106,7 +106,7 @@ class AdsTagStore(ITagStore):
             f.write(tag.id)
         if st is not None:
             try:
-                os.utime(path, (st.st_atime, st.st_mtime))
+                os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
             except OSError:
                 pass
 
@@ -127,7 +127,7 @@ class AdsTagStore(ITagStore):
             return
         if st is not None:
             try:
-                os.utime(path, (st.st_atime, st.st_mtime))
+                os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
             except OSError:
                 pass
 
