@@ -77,7 +77,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
 [Run]
 Filename: "{app}\ColorTagsOverlay.exe"; \
     Description: "{cm:LaunchProgram,ColorTags}"; \
-    Flags: nowait postinstall skipifsilent
+    Flags: nowait postinstall skipifsilent; Check: IntegrationReady
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
@@ -85,6 +85,9 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
     Flags: runhidden; RunOnceId: "StopColorTagsOverlay"
 
 [Code]
+var
+  IntegrationFailed: Boolean;
+
 // The running overlay watches this per-user event, including portable copies.
 // If an installed copy still holds a file, Restart Manager asks to close it.
 function OpenEventW(DesiredAccess: LongWord; InheritHandle: Boolean;
@@ -127,9 +130,25 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then begin
-    if not RunIntegration(False) then
+    IntegrationFailed := not RunIntegration(False);
+    if IntegrationFailed then
       RaiseException('ColorTags Explorer integration failed. Approve the administrator prompts and run setup again. Details: %LOCALAPPDATA%\Colortags\setup-integration.log');
   end;
+end;
+
+function GetCustomSetupExitCode(): Integer;
+begin
+  if IntegrationFailed then Result := 1 else Result := 0;
+end;
+
+function IntegrationReady(): Boolean;
+begin
+  Result := not IntegrationFailed;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := IntegrationFailed and (PageID = wpFinished);
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
